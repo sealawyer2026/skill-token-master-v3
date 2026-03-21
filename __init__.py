@@ -1,6 +1,6 @@
 """Token经济大师 v3.0 - 入口模块"""
 
-__version__ = '3.0.3'
+__version__ = '3.0.5'
 __author__ = '白泽'
 
 from .analyzer.unified_analyzer import TokenAnalyzer
