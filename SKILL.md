@@ -1,7 +1,7 @@
 # Token经济大师 v3.0
 
 **ID**: token-economy-master-v3
-**版本**: 3.0.1
+**版本**: 3.0.2
 **作者**: 白泽
 **标签**: ["token", "optimization", "ai", "efficiency", "cost-saving"]
 
