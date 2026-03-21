@@ -71,14 +71,32 @@ class SmartOptimizer:
             (r'重要的?', '重'),
             (r'输入之?', '入'),
             (r'输出之?', '出'),
-            (r'每个', '各'),
-            (r'所有', '全'),
-            (r'结果', '果'),
-            (r'数据', '数'),
-            (r'信息', '息'),
+            # v3.0.3新增：更多长句压缩
+            (r'对于', '对'),
+            (r'关于', '关'),
+            (r'根据', '依'),
+            (r'按照', '依'),
+            (r'通过', '经'),
+            (r'经过', '经'),
+            (r'根据', '依'),
+            (r'基于', '基'),
+            (r'针对', '对'),
+            (r'涉及', '涉'),
+            (r'包括', '含'),
+            (r'包含', '含'),
+            (r'以及', '及'),
+            (r'或者', '或'),
+            (r'还是', '或'),
+            (r'虽然', '虽'),
+            (r'尽管', '虽'),
+            (r'不但', '不'),
+            (r'不仅', '不'),
+            (r'而且', '且'),
+            (r'并且', '且'),
+            (r'或者', '或'),
         ]
         
-        # 代码优化规则 - v3.0.2自迭代增强
+        # 代码优化规则 - v3.0.3进一步增强
         self.code_rules = [
             # 删除注释
             (r'#.*$', ''),
@@ -93,6 +111,12 @@ class SmartOptimizer:
             (r'return\s+\{\s*["\']total["\']\s*:\s*(\w+)\s*,\s*["\']active["\']\s*:\s*(\w+)\s*\}', r'return \1,\2'),
             (r'for\s+(\w+)\s+in\s+(\w+):', r'for \1 in \2:'),
             (r'if\s+(\w+)\s+is\s+not\s+None:', r'if \1:'),
+            # v3.0.3新增：激进代码压缩
+            (r'is\s+not\s+None', ''),
+            (r'==\s*True', ''),
+            (r'==\s*False', ''),
+            (r'if\s+(\w+):\s*return\s+True\s*else:\s*return\s+False', r'return bool(\1)'),
+            (r'if\s+not\s+(\w+):\s*return\s+False\s*else:\s*return\s+True', r'return bool(\1)'),
         ]
         
         self._compiled_rules = {
@@ -151,7 +175,7 @@ class SmartOptimizer:
         return int(chinese_chars / 1.5 + other_chars / 4)
     
     def _optimize_prompt(self, content: str) -> str:
-        """优化提示词 - v3.0增强版"""
+        """优化提示词 - v3.0.3终极版"""
         result = content
         
         # 应用预编译规则
@@ -160,16 +184,26 @@ class SmartOptimizer:
         
         # 删除多余空格
         result = re.sub(r' +', ' ', result)
-        result = re.sub(r'\n\s*\n', '\n', result)
         
-        # v3.0: 额外压缩
-        # 删除填充词后的空格问题修复
-        result = re.sub(r'([\u4e00-\u9fff])的([\u4e00-\u9fff])', r'\1之\2', result)
-        result = re.sub(r'([\u4e00-\u9fff])了([\u4e00-\u9fff])', r'\1毕\2', result)
-        result = re.sub(r'请([\u4e00-\u9fff])', r'\1', result)
-        result = re.sub(r'([\u4e00-\u9fff])一下', r'\1', result)
-        result = re.sub(r'帮我?', '', result)
-        result = re.sub(r'给我?', '', result)
+        # v3.0.3: 额外压缩 - 删除数字序号后的空格
+        result = re.sub(r'(\d+)\.\s+', r'\1.', result)
+        
+        # v3.0.3: 删除常见冗余结构
+        result = re.sub(r'之[助势]', '', result)  # "之助" "之势" 等冗余
+        result = re.sub(r'毕[成了]', '毕', result)  # "完成了" → "毕"
+        
+        # v3.0.3: 列表项压缩
+        lines = result.split('\n')
+        compressed_lines = []
+        for line in lines:
+            line = line.strip()
+            # 删除列表项中的填充词
+            line = re.sub(r'^[\s]*[-*]\s*', '', line)  # 删除列表符号
+            if line:
+                compressed_lines.append(line)
+        
+        result = '\n'.join(compressed_lines)
+        result = re.sub(r'\n\s*\n', '\n', result)
         
         return result.strip()
     
