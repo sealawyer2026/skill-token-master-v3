@@ -136,6 +136,70 @@ class SmartOptimizer:
             (r'假设', '若'),
             (r'若是', '若'),
             (r'要是', '若'),
+            # v3.0.5增强：更激进压缩
+            (r'虽然|尽管', '虽'),
+            (r'可能|也许|或许', '或'),
+            (r'肯定|确定|绝对', '定'),
+            (r'大概|大约|约莫', '约'),
+            (r'几乎|将近|差不多', '近'),
+            (r'只要', '若'),
+            (r'只有', '唯'),
+            (r'不仅|不只|不光', '不'),
+            (r'而且|并且|况且', '且'),
+            (r'或者|或是|或', '或'),
+            (r'问题', '题'),
+            (r'方法', '法'),
+            (r'方案', '案'),
+            (r'解决', '解'),
+            (r'结果', '果'),
+            (r'过程', '程'),
+            (r'原因', '因'),
+            (r'目的', '的'),
+            (r'意义', '义'),
+            (r'作用', '用'),
+            (r'效果', '效'),
+            (r'影响', '响'),
+            (r'关系', '系'),
+            (r'情况', '况'),
+            (r'状态', '态'),
+            (r'形式', '式'),
+            (r'方式', '式'),
+            (r'结构', '构'),
+            (r'功能', '能'),
+            (r'系统', '系'),
+            (r'部分', '部'),
+            (r'方面', '面'),
+            (r'角度', '角'),
+            (r'层次', '层'),
+            (r'阶段', '阶'),
+            (r'步骤', '步'),
+            (r'环节', '环'),
+            (r'过程', '程'),
+            (r'开始', '始'),
+            (r'结束', '终'),
+            (r'完成', '毕'),
+            (r'实现', '现'),
+            (r'达到', '达'),
+            (r'获得', '得'),
+            (r'得到', '得'),
+            (r'失去', '失'),
+            (r'产生', '生'),
+            (r'形成', '形'),
+            (r'变成', '变'),
+            (r'成为', '成'),
+            (r'作为', '作'),
+            (r'为了', '为'),
+            (r'由于', '因'),
+            (r'根据', '依'),
+            (r'按照', '依'),
+            (r'通过', '经'),
+            (r'经过', '经'),
+            (r'随着', '随'),
+            (r'面对', '对'),
+            (r'针对', '对'),
+            (r'对于', '对'),
+            (r'关于', '关'),
+            (r'至于', '至'),
         ]
         
         # v3.0.5: 代码优化规则进一步增强
@@ -159,11 +223,18 @@ class SmartOptimizer:
             (r'==\s*False', ''),
             (r'if\s+(\w+):\s*return\s+True\s*else:\s*return\s+False', r'return bool(\1)'),
             (r'if\s+not\s+(\w+):\s*return\s+False\s*else:\s*return\s+True', r'return bool(\1)'),
-            # v3.0.5: 统计函数优化
-            (r'(\w+)\s*=\s*0\s*\n\s*for\s+(\w+)\s+in\s+(\w+):\s*\n\s*\1\s*\+=\s*\2', r'\1=sum(\3)'),
-            (r'(\w+)\s*=\s*\[\]\s*\n\s*for\s+(\w+)\s+in\s+(\w+):\s*\n\s*if\s+(\w+):\s*\n\s*\1\.append\((\w+)\)', r'\1=[\5 for \2 in \3 if \4]'),
-            (r'def\s+(\w+)\(([^)]*)\):\s*\n\s*return\s+sum\((\w+)\)', r'\1=sum'),
-            (r'def\s+(\w+)\(([^)]*)\):\s*\n\s*return\s+len\((\w+)\)', r'\1=len'),
+            # v3.0.5增强：更多代码压缩
+            (r'and\s+len\((\w+)\)\s*>\s*0', r'and \1'),
+            (r'and\s+(\w+)\s*is\s*not\s*None', r'and \1'),
+            (r'if\s+(\w+)\s+and\s+len\((\w+)\)\s*>\s*0', r'if \1 and \2'),
+            (r'def\s+(\w+)\(([^)]*)\):\s*\n\s*(\w+)=\[\]\s*\n\s*for\s+(\w+)\s+in\s+(\w+):\s*\n\s*if\s+(\w+):\s*\n\s*\3\.append\((\w+)\)\s*\n\s*return\s+\3', r'def \1(\2):return [\7 for \4 in \5 if \6]'),
+            (r'(\w+)\s*=\s*\[\]', r'\1=[]'),
+            (r'(\w+)\.append\(([^)]+)\)', r'\1+=[\2]'),
+            # v3.0.5: 字典返回转元组
+            (r'return\s*\{\s*["\']total["\']\s*:\s*(\w+)\s*\}', r'return(\1,)'),
+            (r'return\s*\{\s*["\']value["\']\s*:\s*(\w+)\s*\}', r'return(\1,)'),
+            (r'return\s*\{\s*["\']result["\']\s*:\s*(\w+)\s*\}', r'return(\1,)'),
+            (r'return\s*\{\s*["\']data["\']\s*:\s*(\w+)\s*\}', r'return(\1,)'),
         ]
         
         self._compiled_rules = {
@@ -232,42 +303,67 @@ class SmartOptimizer:
         # 删除多余空格
         result = re.sub(r' +', ' ', result)
         
-        # v3.0.3: 额外压缩 - 删除数字序号后的空格
-        result = re.sub(r'(\d+)\.\s+', r'\1.', result)
+        # v3.0.5增强：列表任务超级压缩
+        # 删除序号和空格
+        result = re.sub(r'(\d+)[.:\s]+', r'\1.', result)
+        # 删除连接词
+        result = re.sub(r'[,，\s]*[和与及][,，\s]*', ',', result)
+        # 删除"先/然后/再/最后"序列
+        result = re.sub(r'(先|然后|再|接着|随后|最后)[，,\s]*', '', result)
         
-        # v3.0.3: 删除常见冗余结构
-        result = re.sub(r'之[助势]', '', result)  # "之助" "之势" 等冗余
-        result = re.sub(r'毕[成了]', '毕', result)  # "完成了" → "毕"
-        
-        # v3.0.3: 列表项压缩
+        # v3.0.5: 段落级压缩
         lines = result.split('\n')
         compressed_lines = []
         for line in lines:
             line = line.strip()
-            # 删除列表项中的填充词
-            line = re.sub(r'^[\s]*[-*]\s*', '', line)  # 删除列表符号
+            # 删除列表符号和填充
+            line = re.sub(r'^[\s]*[-*•·]\s*', '', line)
+            line = re.sub(r'^[\s]*\d+[.、)\]】]\s*', '', line)
+            # 删除行首的"先/首先/第一步"
+            line = re.sub(r'^(先|首先|第一步|第1步)[，,、:\s]*', '', line)
+            # 删除行尾的"等/等等"
+            line = re.sub(r'[，,、\s]*等[等]?\s*$', '', line)
             if line:
                 compressed_lines.append(line)
         
         result = '\n'.join(compressed_lines)
         result = re.sub(r'\n\s*\n', '\n', result)
         
+        # v3.0.5: 最终清理
+        result = re.sub(r'[，,、；;]+', '，', result)  # 统一标点
+        result = re.sub(r'[。\.]+', '。', result)
+        result = re.sub(r'\s+', '', result)  # 删除所有空格
+        
         return result.strip()
     
     def _optimize_code(self, content: str) -> str:
-        """优化代码 - v3.0.4进一步增强"""
+        """优化代码 - v3.0.5终极版"""
         result = content
         
-        # v3.0.4: 先删除所有注释和docstring（多行处理）
+        # v3.0.5: 先删除所有注释和docstring（多行处理）
         result = re.sub(r'"""[\s\S]*?"""', '', result)
         result = re.sub(r"'''[\s\S]*?'''", '', result)
         result = re.sub(r'#.*$', '', result, flags=re.MULTILINE)
+        
+        # v3.0.5: 统计函数模式识别（必须在单行压缩之前）
+        # 模式1: total=0; for x in data: total+=x -> total=sum(data)
+        result = re.sub(
+            r'(\w+)\s*=\s*0\s*\n\s*for\s+(\w+)\s+in\s+(\w+):\s*\n\s*\1\s*\+=\s*\2\s*\n',
+            r'\1=sum(\3)\n',
+            result
+        )
+        # 模式2: result=[]; for x in items: if x: result.append(x)
+        result = re.sub(
+            r'(\w+)\s*=\s*\[\]\s*\n\s*for\s+(\w+)\s+in\s+(\w+):\s*\n\s*if\s+(\w+):\s*\n\s*\1\.append\(\w+\)\s*\n',
+            r'\1=[\2 for \2 in \3 if \4]\n',
+            result
+        )
         
         # 应用代码规则
         for pattern, replacement in self._compiled_rules['code']:
             result = pattern.sub(replacement, result)
         
-        # v3.0.4: 额外压缩
+        # v3.0.5: 额外压缩
         # 删除多余空行
         result = re.sub(r'\n\s*\n', '\n', result)
         result = re.sub(r'\n+', '\n', result)
@@ -275,7 +371,7 @@ class SmartOptimizer:
         # 删除行首空格
         result = '\n'.join(line.strip() for line in result.split('\n'))
         
-        # v3.0.4: 简化常见模式
+        # v3.0.5: 简化常见模式
         # result = [] -> r=[]
         result = re.sub(r'(\w+)\s*=\s*\[\]', r'\1=[]', result)
         # result.append(x) -> r+=[x]
@@ -284,6 +380,11 @@ class SmartOptimizer:
         result = re.sub(r'for\s+(\w+)\s+in\s+(\w+):', r'for \1 in \2:', result)
         # if条件简化
         result = re.sub(r'if\s+([^:]+):', r'if \1:', result)
+        
+        # v3.0.5: 删除多余空格
+        result = re.sub(r'\s*=\s*', '=', result)
+        result = re.sub(r'\s*,\s*', ',', result)
+        result = re.sub(r'\s*:\s*', ':', result)
         
         return result.strip()
     
