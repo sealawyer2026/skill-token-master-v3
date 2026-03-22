@@ -1,19 +1,27 @@
-"""Token经济大师 v3.0 - 统一分析器"""
+"""Token经济大师 v3.2.0 - 统一分析器"""
 
 import re
 import json
 from pathlib import Path
 from typing import Dict, List, Tuple, Any
 
+# 导入新模块
+from .mcp_analyzer import MCPAnalyzer, MCPOptimizer
+from .sql_analyzer import SQLAnalyzer, SQLOptimizer
+
 class TokenAnalyzer:
-    """Token使用量分析器"""
+    """Token使用量分析器 v3.2.0"""
     
     def __init__(self):
         self.patterns = {
             'agent': self._analyze_agent,
             'skill': self._analyze_skill,
-            'workflow': self._analyze_workflow
+            'workflow': self._analyze_workflow,
+            'mcp': self._analyze_mcp,
+            'sql': self._analyze_sql
         }
+        self.mcp_analyzer = MCPAnalyzer()
+        self.sql_analyzer = SQLAnalyzer()
     
     def analyze(self, content: str, content_type: str = 'auto') -> Dict[str, Any]:
         """分析内容Token使用情况"""
@@ -34,8 +42,22 @@ class TokenAnalyzer:
         return base_info
     
     def _detect_type(self, content: str) -> str:
-        """自动检测内容类型"""
-        content_lower = content.lower()
+        """自动检测内容类型 v3.2.0"""
+        content_lower = content.lower().strip()
+        
+        # 检测 MCP 配置
+        if content_lower.startswith('{') and '"tools"' in content_lower:
+            try:
+                data = json.loads(content)
+                if 'tools' in data or 'mcpServers' in data:
+                    return 'mcp'
+            except:
+                pass
+        
+        # 检测 SQL
+        sql_keywords = ['select', 'insert', 'update', 'delete', 'from', 'where', 'join']
+        if any(kw in content_lower for kw in sql_keywords):
+            return 'sql'
         
         # 检测工作流
         if any(kw in content for kw in ['workflow', 'steps', 'pipeline', 'yaml']):
@@ -147,3 +169,11 @@ class TokenAnalyzer:
             'issue_count': len(issues),
             'optimization_potential': min(55, 10 + len(issues) * 10)
         }
+    
+    def _analyze_mcp(self, content: str) -> Dict:
+        """分析 MCP 配置 v3.2.0"""
+        return self.mcp_analyzer.analyze(content)
+    
+    def _analyze_sql(self, content: str) -> Dict:
+        """分析 SQL 查询 v3.2.0"""
+        return self.sql_analyzer.analyze(content)
