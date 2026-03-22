@@ -11,9 +11,12 @@ Token经济大师 v3.5.0 - 超级压缩引擎
 """
 
 import sys
+import json
+import hashlib
 from pathlib import Path
-from typing import Dict, Tuple, Optional
-from dataclasses import dataclass
+from typing import Dict, Tuple, Optional, List
+from dataclasses import dataclass, asdict
+from datetime import datetime
 
 # 添加项目路径
 sys.path.insert(0, str(Path(__file__).parent))
@@ -36,6 +39,91 @@ class V35Result:
     time_ms: float
 
 
+@dataclass
+class UsageRecord:
+    """使用记录"""
+    timestamp: str
+    session_id: str
+    content_type: str
+    strategy: str
+    original_len: int
+    compressed_len: int
+    compression_ratio: float
+    target_ratio: float
+    iterations: int
+    time_ms: float
+    version: str = "3.5.0"
+
+
+class UsageStats:
+    """使用统计管理器"""
+    
+    def __init__(self, data_dir: str = "./usage_data"):
+        self.data_dir = Path(data_dir)
+        self.data_dir.mkdir(exist_ok=True)
+        self.stats_file = self.data_dir / "usage_stats.jsonl"
+        self.session_id = self._generate_session_id()
+    
+    def _generate_session_id(self) -> str:
+        """生成会话ID"""
+        import uuid
+        return str(uuid.uuid4())[:8]
+    
+    def log_usage(self, record: UsageRecord):
+        """记录使用情况"""
+        record.session_id = self.session_id
+        with open(self.stats_file, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(asdict(record), ensure_ascii=False) + '\n')
+    
+    def get_stats(self, days: int = 7) -> Dict:
+        """获取统计摘要"""
+        if not self.stats_file.exists():
+            return {"error": "暂无使用数据"}
+        
+        records = []
+        with open(self.stats_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                try:
+                    records.append(json.loads(line.strip()))
+                except:
+                    continue
+        
+        if not records:
+            return {"error": "暂无使用数据"}
+        
+        # 计算统计
+        total_uses = len(records)
+        prompt_uses = sum(1 for r in records if r.get('content_type') == 'prompt')
+        code_uses = sum(1 for r in records if r.get('content_type') == 'code')
+        
+        avg_ratio = sum(r.get('compression_ratio', 0) for r in records) / total_uses
+        avg_time = sum(r.get('time_ms', 0) for r in records) / total_uses
+        
+        # 策略分布
+        strategies = {}
+        for r in records:
+            s = r.get('strategy', 'unknown')
+            strategies[s] = strategies.get(s, 0) + 1
+        
+        return {
+            "total_uses": total_uses,
+            "prompt_uses": prompt_uses,
+            "code_uses": code_uses,
+            "avg_compression_ratio": round(avg_ratio, 3),
+            "avg_time_ms": round(avg_time, 2),
+            "strategy_distribution": strategies,
+            "data_file": str(self.stats_file)
+        }
+    
+    def export_report(self, output_file: str = "usage_report.json"):
+        """导出详细报告"""
+        stats = self.get_stats()
+        output_path = self.data_dir / output_file
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(stats, f, ensure_ascii=False, indent=2)
+        return str(output_path)
+
+
 class TokenMasterV35:
     """
     Token经济大师 v3.5.0
@@ -47,6 +135,7 @@ class TokenMasterV35:
         self.code = CodeRestructurer()
         self.multi_round = MultiRoundCompressor()
         self.learner = AdaptiveLearner()
+        self.usage_stats = UsageStats()
         
     def compress(self, text: str, content_type: Optional[str] = None,
                  target_ratio: float = 0.80) -> V35Result:
@@ -76,7 +165,7 @@ class TokenMasterV35:
         
         elapsed_ms = (time.time() - start_time) * 1000
         
-        return V35Result(
+        v35_result = V35Result(
             original=text,
             compressed=result['compressed'],
             strategy_used=result['strategy'],
@@ -85,6 +174,31 @@ class TokenMasterV35:
             iterations=result.get('iterations', 1),
             time_ms=elapsed_ms
         )
+        
+        # 记录使用统计
+        self._log_usage(v35_result, content_type, target_ratio)
+        
+        return v35_result
+    
+    def _log_usage(self, result: V35Result, content_type: str, target_ratio: float):
+        """记录使用情况"""
+        record = UsageRecord(
+            timestamp=datetime.now().isoformat(),
+            session_id="",
+            content_type=content_type,
+            strategy=result.strategy_used,
+            original_len=len(result.original),
+            compressed_len=len(result.compressed),
+            compression_ratio=result.compression_ratio,
+            target_ratio=target_ratio,
+            iterations=result.iterations,
+            time_ms=result.time_ms
+        )
+        self.usage_stats.log_usage(record)
+    
+    def get_usage_stats(self) -> Dict:
+        """获取使用统计"""
+        return self.usage_stats.get_stats()
     
     def _detect_content_type(self, text: str) -> str:
         """检测内容类型"""
@@ -180,37 +294,85 @@ def main():
         description='Token经济大师 v3.5.0 - 超级压缩引擎'
     )
     
-    parser.add_argument('text', help='要压缩的文本')
-    parser.add_argument('--type', '-t', choices=['prompt', 'code', 'auto'],
-                       default='auto', help='内容类型')
-    parser.add_argument('--target', '-r', type=float, default=0.80,
-                       help='目标压缩率 (0-1)')
-    parser.add_argument('--smart', '-s', action='store_true',
-                       help='使用智能模式 (自动选择策略)')
+    subparsers = parser.add_subparsers(dest='command', help='可用命令')
+    
+    # compress 命令
+    compress_parser = subparsers.add_parser('compress', help='压缩文本')
+    compress_parser.add_argument('text', help='要压缩的文本')
+    compress_parser.add_argument('--type', '-t', choices=['prompt', 'code', 'auto'],
+                                default='auto', help='内容类型')
+    compress_parser.add_argument('--target', '-r', type=float, default=0.80,
+                                help='目标压缩率 (0-1)')
+    compress_parser.add_argument('--smart', '-s', action='store_true',
+                                help='使用智能模式 (自动选择策略)')
+    
+    # stats 命令
+    stats_parser = subparsers.add_parser('stats', help='查看使用统计')
+    stats_parser.add_argument('--export', '-e', help='导出报告到文件')
     
     args = parser.parse_args()
     
-    print("=" * 60)
-    print("🚀 Token经济大师 v3.5.0 - 超级压缩引擎")
-    print("=" * 60)
+    if args.command == 'compress' or args.command is None:
+        # 默认压缩模式
+        text = args.text if hasattr(args, 'text') else args.text if args.command == 'compress' else None
+        if text is None:
+            parser.print_help()
+            return
+        
+        print("=" * 60)
+        print("🚀 Token经济大师 v3.5.0 - 超级压缩引擎")
+        print("=" * 60)
+        
+        master = TokenMasterV35()
+        
+        if args.smart:
+            result = master.smart_compress(args.text)
+        else:
+            result = master.compress(args.text, args.type, args.target)
+        
+        print(f"\n📊 压缩结果:")
+        print(f"  原始长度: {len(result.original)} 字符")
+        print(f"  压缩后: {len(result.compressed)} 字符")
+        print(f"  节省: {result.savings_percentage:.1f}%")
+        print(f"  使用策略: {result.strategy_used}")
+        print(f"  迭代次数: {result.iterations}")
+        print(f"  耗时: {result.time_ms:.2f}ms")
+        print(f"  📈 已记录使用统计")
+        
+        print(f"\n📝 压缩后文本:")
+        print(result.compressed)
     
-    master = TokenMasterV35()
+    elif args.command == 'stats':
+        # 统计模式
+        master = TokenMasterV35()
+        stats = master.get_usage_stats()
+        
+        print("=" * 60)
+        print("📊 Token经济大师 v3.5.0 - 使用统计")
+        print("=" * 60)
+        
+        if "error" in stats:
+            print(f"\n{stats['error']}")
+        else:
+            print(f"\n📈 总体统计:")
+            print(f"  总使用次数: {stats['total_uses']}")
+            print(f"  提示词压缩: {stats['prompt_uses']} 次")
+            print(f"  代码压缩: {stats['code_uses']} 次")
+            print(f"  平均压缩率: {stats['avg_compression_ratio']*100:.1f}%")
+            print(f"  平均耗时: {stats['avg_time_ms']:.2f}ms")
+            
+            print(f"\n📊 策略分布:")
+            for strategy, count in stats['strategy_distribution'].items():
+                print(f"  - {strategy}: {count} 次")
+            
+            print(f"\n💾 数据文件: {stats['data_file']}")
+            
+            if args.export:
+                output = master.usage_stats.export_report(args.export)
+                print(f"📄 报告已导出: {output}")
     
-    if args.smart:
-        result = master.smart_compress(args.text)
     else:
-        result = master.compress(args.text, args.type, args.target)
-    
-    print(f"\n📊 压缩结果:")
-    print(f"  原始长度: {len(result.original)} 字符")
-    print(f"  压缩后: {len(result.compressed)} 字符")
-    print(f"  节省: {result.savings_percentage:.1f}%")
-    print(f"  使用策略: {result.strategy_used}")
-    print(f"  迭代次数: {result.iterations}")
-    print(f"  耗时: {result.time_ms:.2f}ms")
-    
-    print(f"\n📝 压缩后文本:")
-    print(result.compressed)
+        parser.print_help()
 
 
 if __name__ == '__main__':
