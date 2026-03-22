@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Token经济大师 CLI - v3.3.0
+Token经济大师 CLI - v3.4.0
 命令行工具入口
 """
 
@@ -42,7 +42,7 @@ class TokenMasterCLI:
             '''
         )
         
-        parser.add_argument('--version', action='version', version='%(prog)s 3.3.0')
+        parser.add_argument('--version', action='version', version='%(prog)s 3.4.0')
         
         subparsers = parser.add_subparsers(dest='command', help='可用命令')
         
