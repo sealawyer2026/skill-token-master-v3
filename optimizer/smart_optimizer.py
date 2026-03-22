@@ -1,4 +1,4 @@
-"""Token经济大师 v3.0 - 智能优化器"""
+"""Token经济大师 v3.2.0 - 智能优化器"""
 
 import re
 import json
@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Dict, List, Any
 
 class SmartOptimizer:
-    """智能优化器 v3.0 - 终极优化版"""
+    """智能优化器 v3.2.0 - 终极优化版"""
     
     def __init__(self):
         self.optimization_log = []
@@ -666,3 +666,41 @@ class SmartOptimizer:
         except json.JSONDecodeError:
             # 如果是YAML或其他格式，返回原内容
             return content
+
+    # ==================== v3.2.0 新增方法 ====================
+    
+    def optimize_extreme(self, content: str, content_type: str = 'text') -> str:
+        """极致压缩 - v3.2.0"""
+        from .extreme_compressor import ExtremeCompressor
+        compressor = ExtremeCompressor()
+        if content_type == 'text' or content_type == 'agent':
+            return compressor.compress(content)
+        return content
+    
+    def optimize_code_ast(self, code: str) -> str:
+        """AST级代码优化 - v3.2.0"""
+        from .ast_optimizer import ASTOptimizer
+        optimizer = ASTOptimizer()
+        return optimizer.optimize(code)
+    
+    def optimize_markdown(self, content: str) -> str:
+        """Markdown优化 - v3.2.0"""
+        from .markdown_optimizer import MarkdownOptimizer
+        optimizer = MarkdownOptimizer()
+        return optimizer.optimize(content)
+    
+    def optimize_mcp(self, content: str) -> str:
+        """MCP配置优化 - v3.2.0"""
+        import sys
+        sys.path.insert(0, '/root/.openclaw/workspace/skill-token-master-v3')
+        from analyzer.mcp_analyzer import MCPOptimizer
+        optimizer = MCPOptimizer()
+        return optimizer.optimize(content)
+    
+    def optimize_sql(self, content: str) -> str:
+        """SQL查询优化 - v3.2.0"""
+        import sys
+        sys.path.insert(0, '/root/.openclaw/workspace/skill-token-master-v3')
+        from analyzer.sql_analyzer import SQLOptimizer
+        optimizer = SQLOptimizer()
+        return optimizer.optimize(content)
